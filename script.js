@@ -1,39 +1,66 @@
-// --- KONFIGURASI AWAL ---
-let chatHistory = JSON.parse(localStorage.getItem("liquid_chat_history")) || [];
-const chatContainer = document.getElementById("chat-container");
-const userInput = document.getElementById("user-input");
-const sendBtn = document.getElementById("send-btn");
-const landingPage = document.querySelector(".landing");
+let chatHistory = [];
 
-// --- INISIALISASI ---
-window.onload = () => {
-    renderChatHistory();
-    toggleLanding();
-};
+document.addEventListener("DOMContentLoaded", () => {
+    const sendBtn = document.getElementById("send-btn");
+    const userInput = document.getElementById("user-input");
 
-// --- FUNGSI UTAMA KIRIM PESAN ---
+    if (sendBtn) {
+        sendBtn.addEventListener("click", sendMessage);
+    }
+
+    if (userInput) {
+        userInput.addEventListener("keypress", (e) => {
+            if (e.key === "Enter") sendMessage();
+        });
+    }
+    
+    console.log("Liquid AI: Tombol dan Input siap!");
+});
+
 async function sendMessage() {
-    const message = userInput.value.trim();
-    if (!message) return;
+    const input = document.getElementById("user-input");
+    const text = input.value.trim();
+    if (!text) return;
 
-    // 1. Tambah pesan user ke layar & history
-    addMessage("user", message);
-    userInput.value = "";
-    toggleLanding();
+    // Tampilkan pesan user ke layar
+    displayMessage("user", text);
+    input.value = "";
 
-    // 2. Siapkan memori optimal (40 pesan terakhir)
-    const memoryOptimal = chatHistory.slice(-40).map(msg => ({
-        role: msg.role,
-        content: msg.content
-    }));
+    // Simpan ke history & potong jadi 40 pesan terakhir
+    chatHistory.push({ role: "user", content: text });
+    const memory = chatHistory.slice(-40);
 
-    // 3. Tambahkan Persona AI (diambil dari settings atau default)
-    const aiPersona = localStorage.getItem("ai_persona") || "Kamu adalah Liquid AI yang keren.";
-    const finalMessages = [
-        { role: "system", content: aiPersona },
-        ...memoryOptimal
-    ];
+    try {
+        // Panggil Backend kamu sendiri
+        const response = await fetch("/api/chat", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ messages: memory })
+        });
 
+        const data = await response.json();
+        const aiResponse = data.choices[0].message.content;
+
+        // Tampilkan pesan AI & simpan ke history
+        displayMessage("ai", aiResponse);
+        chatHistory.push({ role: "assistant", content: aiResponse });
+
+    } catch (error) {
+        console.error("Error:", error);
+        displayMessage("ai", "Maaf Bos, ada kendala koneksi ke server.");
+    }
+}
+
+function displayMessage(role, text) {
+    const container = document.getElementById("chat-container");
+    if (!container) return;
+    
+    const div = document.createElement("div");
+    div.className = role === "user" ? "user-msg" : "ai-msg";
+    div.innerText = text;
+    container.appendChild(div);
+    container.scrollTop = container.scrollHeight;
+}
     try {
         // 4. Panggil Backend (Bukan Groq langsung agar aman!)
         const response = await fetch("/api/chat", {
